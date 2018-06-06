@@ -36,7 +36,7 @@ class Sudo:
                     self.value[r, c] = int(_data[r, c])
                     # 新的确认的值添加到列表中，以便遍历
                     self.new_points.put((r, c))
-                    logger.debug(f'init: answer={self.value[r, c]} at {(r, c)}')
+                    # logger.debug(f'init: answer={self.value[r, c]} at {(r, c)}')
                 else: # if Zero, guess no. is 1-9
                     self.value[r, c] = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
@@ -54,7 +54,7 @@ class Sudo:
                     # 判断移除后，是否剩下一个元素
                     if len(item) == 1:
                         self.new_points.put((r, i)) # 添加坐标到“已解决”列表
-                        logger.debug(f'only one in row: answer={self.value[r, i]} at {(r, i)}')
+                        # logger.debug(f'only one in row: answer={self.value[r, i]} at {(r, i)}')
                         self.value[r, i] = item[0]
 
         # 列
@@ -66,7 +66,7 @@ class Sudo:
                     # 判断移除后，是否剩下一个元素
                     if len(item) == 1:
                         self.new_points.put((i, c))
-                        logger.debug(f'only one in col: answer={self.value[i, c]} at {(i, c)}')
+                        # logger.debug(f'only one in col: answer={self.value[i, c]} at {(i, c)}')
                         self.value[i, c] = item[0]
 
         # 所在九宫格(3x3的数组)
@@ -82,7 +82,7 @@ class Sudo:
                             r = b_r + m_r
                             c = b_c + m_c
                             self.new_points.put((r, c))
-                            logger.debug(f'only one in block: answer={self.value[r, c]} at {(r, c)}')
+                            # logger.debug(f'only one in block: answer={self.value[r, c]} at {(r, c)}')
                             self.value[r, c] = item[0]
 
     # 同一行、列或九宫格中, List里，可能性只有一个的情况
@@ -98,7 +98,7 @@ class Sudo:
                         if sum(map(lambda x: x.count(value), values)) == 1:
                             self.value[r, c] = value
                             self.new_points.put((r, c))
-                            logger.debug(f'list val is only one in row: answer={self.value[r, c]} at {(r, c)}')
+                            # logger.debug(f'list val is only one in row: answer={self.value[r, c]} at {(r, c)}')
                             return True
 
         # 同一列只有一个数字的情况
@@ -111,7 +111,7 @@ class Sudo:
                         if sum(map(lambda x: x.count(value), values)) == 1:
                             self.value[r, c] = value
                             self.new_points.put((r, c))
-                            logger.debug(f'list val is only one in col: answer={self.value[r, c]} at {(r, c)}')
+                            # logger.debug(f'list val is only one in col: answer={self.value[r, c]} at {(r, c)}')
                             return True
 
         # 九宫格内的单元格只有一个数字的情况
@@ -126,7 +126,7 @@ class Sudo:
                             if sum(map(lambda x: x.count(value), values)) == 1:
                                 self.value[r + m_r, c + m_c] = value
                                 self.new_points.put((r + m_r, c + m_c))
-                                logger.debug(f'list val is only one in block: answer={self.value[r + m_r, c +m_c]} at {(r + m_r, c +m_c)}')
+                                # logger.debug(f'list val is only one in block: answer={self.value[r + m_r, c +m_c]} at {(r + m_r, c +m_c)}')
                                 return True
 
     # 同一个九宫格内数字在同一行或同一列处理(同行列隐性排除)
@@ -162,8 +162,7 @@ class Sudo:
                                         # 判断移除后，是否剩下一个元素
                                         if len(item) == 1:
                                             self.new_points.put((row, col))
-                                            logger.debug(
-                                                f'block compare row: answer={self.value[row, col]} at {(row, col)}')
+                                            logger.debug(f'block compare row: answer={self.value[row, col]} at {(row, col)}')
                                             self.value[row, col] = item[0]
                                             return True
 
@@ -239,6 +238,7 @@ class Sudo:
     # 验证有没错误
     def check_value(self):
         # 行
+        r = 0
         for row in self.value:
             nums = []
             lists = []
@@ -250,6 +250,7 @@ class Sudo:
                 return False  # 数字要不重复
             if len(list(filter(lambda x: len(x) == 0, lists))):
                 return False  # 候选列表不能为空集
+            r += 1
 
         # 列
         for c in range(0, 9):
@@ -289,10 +290,12 @@ class Sudo:
         # recorder.value = self.value.copy() #numpy的copy不行
         recorder.value = copy.deepcopy(self.value)
         self.recorder.put(recorder)
+        logger.debug(f'added to LIFO queue: {[x.point for x in self.recorder.queue]}')
         self.guess_times += 1  # 记录猜测次数
 
         # 新一轮的排除处理
         item = self.value[point]
+        # assume only 1 in this point
         self.value[point] = item[index]
         self.new_points.put(point)
         logger.debug(f'guessing: answer={self.value[point]}/{item} @{point}')
@@ -309,9 +312,12 @@ class Sudo:
                 index = recorder.point_index + 1
                 item = recorder.value[point]
 
-                # 判断索引是否超出范围。若超出，则再回溯一次
+                # 判断索引是否超出范围
+                # if not exceed，则再回溯一次
                 if index < len(item):
                     break
+                # if exceed, pop next recorder
+                logger.debug(f'Recall! Try previous point.')
 
         logger.debug(f'Recall! Try next possible in same point, {item[index]} @{point}')
         self.value = recorder.value
@@ -327,7 +333,9 @@ class Sudo:
         # 检查有没错误的，有错误的则回溯；没错误却未解开题目，则再猜测
         while True:
             if self.check_value():
-                if self.get_num_count() == 81:
+                fixed_answer = self.get_num_count()
+                logger.debug(f'current no. of fixed answers: {fixed_answer}')
+                if fixed_answer == 81:
                     break
                 else:
                     # 获取最佳猜测点
@@ -364,12 +372,12 @@ if __name__ == '__main__':
              2, 0, 1, 0, 7, 0, 0, 0, 0,
              0, 0, 5, 0, 0, 0, 0, 0, 0]]
 
-    logging.basicConfig(level=logging.INFO)
-    # logging.basicConfig(level=logging.DEBUG)
+    # logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     logger = logging.getLogger(__name__)
     try:
         t1 = time.time()
-        sudo = Sudo(data[0])
+        sudo = Sudo(data[1])
         sudo.sudo_solve()
         t2 = time.time()
 
