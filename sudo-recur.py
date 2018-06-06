@@ -10,7 +10,7 @@ import time
 import copy
 
 
-class Recorder:
+class Record:
     point = None  # 进行猜测的点
     point_index = 0  # 猜测候选列表使用的值的索引
     value = None  # 回溯记录的值
@@ -323,27 +323,80 @@ class Sudo:
         self.value = recorder.value
         self.record_guess(point, index)
 
-    def main(self, recorder):
-        return sudo_solve_iter(recorder.get())
+    def main(self):
+        if self.check_value():
+            if self.get_num_count() == 81:
+                return
+        self.sudo_solve_iter('next', 0)
 
-    def sudo_solve_iter(self, recorder):
-        self.value = recorder.value
-        logger.debug('excluding knowning answers')
+    def sudo_solve_iter(self, method, index):
+        if self.recorder.empty() and self.guess_times>0:
+            raise Exception('Sudo is wrong, no answer!')
         self.sudo_exclude()
-        logger.debug(f'excluded, current result:\n{self.value}')
-        # 获取最佳猜测点
-        point = self.get_best_point()
-        logger.debug(f'Adding new guessing in LIFO, {point}')
-        # 记录并处理
-        self.record_guess(point)
-        logger.debug(f'guessed, current result:\n{self.value}')
+        if method == 'rollback':
+            # check value ERROR, need to try next index or rollback
+            record = self.recorder.get()
+            point = record.point
+            index = record.point_index + 1
+            items = record.value[point]
+            self.value = record.value
+            # 判断索引是否超出范围
+            # if not exceed，则再回溯一次
+            if index < len(items):
+                self.value[point] = items[index]
+                record.point_index = index
+                self.new_points.put(point)
+                logger.debug(f'guessing: answer={self.value[point]}/{items} @{point}')
+                return self.sudo_solve_iter('next', index)
+            logger.debug(f'Recall! Try previous point, {items} @{point}')
+            return self.sudo_solve_iter('rollback', index)
 
         if self.check_value():
-            fixed_answer = self.get_num_count()
-            logger.debug(f'current no. of fixed answers: {fixed_answer}')
-            if fixed_answer == 81:
+            if self.get_num_count() == 81:
                 return
-        return sudo_solve_iter(self, recorder.get())
+            # check value ok, but <81: need to guess forward
+            if method == 'next':
+                point = self.get_best_point()
+                record = Record()
+                record.point = point
+                record.point_index = index
+                # recorder.value = self.value.copy() #numpy的copy不行
+                record.value = copy.deepcopy(self.value)
+                self.recorder.put(record)
+                items = self.value[point]
+                self.value[point] = items[index]
+                self.new_points.put(point)
+                logger.debug(f'add {items} to LIFO queue: {[x.point for x in self.recorder.queue]}')
+                return self.sudo_solve_iter('next', 0)
+        return self.sudo_solve_iter('rollback', index)
+
+
+        
+        self.sudo_exclude()
+
+
+        logger.debug(f'current no. of fixed answers: {self.get_num_count()}')
+        
+        # 新一轮的排除处理
+        items = self.value[point]
+        self.guess_times += 1  # 记录猜测次数
+        # select 1 of items to guess
+        if index < len(items):
+            
+            return self.sudo_solve_iter(index)
+
+        self.guess_times += 1  # 记录猜测次数   
+        record = self.recorder.get()
+        self.value = record.value
+        point = record.point
+        index = record.point_index
+        items = record.value[point]     
+        
+        self.value[point] = items[index+1]
+        self.new_points.put(point)
+        logger.debug(f'guessing: answer={self.value[point]} @{point}')
+        self.sudo_exclude()
+        return
 
     # Main function 解题
     def sudo_solve(self):
@@ -399,8 +452,7 @@ if __name__ == '__main__':
     logger = logging.getLogger(__name__)
     try:
         t1 = time.time()
-        sudo = Sudo(data[1])
-        # sudo.sudo_solve()
+        sudo = Sudo(data[0])
         sudo.main()
         t2 = time.time()
 
