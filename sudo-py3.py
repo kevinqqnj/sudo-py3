@@ -377,7 +377,7 @@ if __name__ == '__main__':
     logger = logging.getLogger(__name__)
     try:
         t1 = time.time()
-        sudo = Sudo(data[1])
+        sudo = Sudo(data[0])
         sudo.sudo_solve()
         t2 = time.time()
 

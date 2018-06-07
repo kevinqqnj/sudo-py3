@@ -17,7 +17,7 @@ class Record:
 
 
 class Sudo:
-    def __init__(self, data):
+    def __init__(self, _data):
         # 数据初始化(二维的object数组)
         self.value = np.array([[0] * 9] * 9, dtype=object)  # 数独的值，包括未解决和已解决的
         self.new_points = Queue()  # 先进先出，新解（已解决值）的坐标
@@ -28,7 +28,7 @@ class Sudo:
         self.base_points = [[0, 0], [0, 3], [0, 6], [3, 0], [3, 3], [3, 6], [6, 0], [6, 3], [6, 6]]
 
         # 整理数据
-        _data = np.array(data).reshape(9, -1)
+        _data = np.array(_data).reshape(9, -1)
         for r in range(0, 9):
             for c in range(0, 9):
                 if _data[r, c]:  # if not Zero
@@ -126,7 +126,8 @@ class Sudo:
                             if sum(map(lambda x: x.count(value), values)) == 1:
                                 self.value[r + m_r, c + m_c] = value
                                 self.new_points.put((r + m_r, c + m_c))
-                                # logger.debug(f'list val is only one in block: answer={self.value[r + m_r, c +m_c]} at {(r + m_r, c +m_c)}')
+                            # logger.debug(f'list val is only one in block: answer={self.value[r + m_r, c +m_c]} at '
+                            #              f'{(r + m_r, c +m_c)}')
                                 return True
 
     # 同一个九宫格内数字在同一行或同一列处理(同行列隐性排除)
@@ -162,8 +163,8 @@ class Sudo:
                                         # 判断移除后，是否剩下一个元素
                                         if len(item) == 1:
                                             self.new_points.put((row, col))
-                                            logger.debug(
-                                                f'block compare row: answer={self.value[row, col]} at {(row, col)}')
+                                        # logger.debug(f'block compare row: answer={self.value[row, col]} at {(row, '
+                                        #              f'col)}')
                                             self.value[row, col] = item[0]
                                             return True
 
@@ -173,7 +174,7 @@ class Sudo:
                         col = b_c + cols[0]
 
                         for row in range(0, 9):
-                            if not row in result:
+                            if row not in result:
                                 item = self.value[row, col]
                                 if isinstance(item, list):
                                     if item.count(i):
@@ -182,8 +183,8 @@ class Sudo:
                                         # 判断移除后，是否剩下一个元素
                                         if len(item) == 1:
                                             self.new_points.put((row, col))
-                                            logger.debug(
-                                                f'block compare col: answer={self.value[row, col]} at {(row, col)}')
+                                        # logger.debug(f'block compare col: answer={self.value[row, col]} at {(row, '
+                                        #              f'col)}')
                                             self.value[row, col] = item[0]
                                             return True
 
@@ -238,7 +239,7 @@ class Sudo:
             return 0
 
     # 验证有没错误
-    def check_value(self):
+    def verify_value(self):
         # 行
         r = 0
         for row in self.value:
@@ -283,75 +284,35 @@ class Sudo:
                 return False  # 候选列表不能为空集
         return True
 
-    # 猜测记录
-    def record_guess(self, point, index=0):
-        # 记录
-        recorder = Record()
-        recorder.point = point
-        recorder.point_index = index
+    def add_to_queue(self, point, index):
+        record = Record()
+        record.point = point
+        record.point_index = index
         # recorder.value = self.value.copy() #numpy的copy不行
-        recorder.value = copy.deepcopy(self.value)
-        self.record_queue.put(recorder)
-        logger.debug(f'added to LIFO queue: {[x.point for x in self.record_queue.queue]}')
-        self.guess_times += 1  # 记录猜测次数
-
-        # 新一轮的排除处理
-        item = self.value[point]
-        # assume only 1 in this point
-        self.value[point] = item[index]
+        record.value = copy.deepcopy(self.value)
+        self.record_queue.put(record)
+        items = self.value[point]
+        self.value[point] = items[index]
         self.new_points.put(point)
-        logger.debug(f'guessing: answer={self.value[point]}/{item} @{point}')
+        return items
+
+    def sudo_solve_iter(self):
+        # 排除法解题
         self.sudo_exclude()
-
-    # 回溯，需要先进后出
-    def recall(self):
-        while True:
-            if self.record_queue.empty():
-                raise Exception('Sudo is wrong, no answer!')
-            else:
-                recorder = self.record_queue.get()
-                point = recorder.point
-                index = recorder.point_index + 1
-                item = recorder.value[point]
-
-                # 判断索引是否超出范围
-                # if not exceed，则再回溯一次
-                if index < len(item):
-                    break
-                # if exceed, pop next recorder
-                logger.debug(f'Recall! Try previous point.')
-
-        logger.debug(f'Recall! Try next possible in same point, {item[index]} @{point}')
-        self.value = recorder.value
-        self.record_guess(point, index)
-
-    def main(self):
-
-        self.sudo_solve_iter(self.record_queue)
-
-    def sudo_solve_iter(self, record_queue):
-        self.sudo_exclude()
-        logger.debug(f'excluded, current result:\n{self.value}')
-        if self.check_value():
+        # logger.debug(f'excluded, current result:\n{self.value}')
+        if self.verify_value():
             if self.get_num_count() == 81:
                 # solve success
                 return
             else:
                 logger.debug(f'current no. of fixed answers: {self.get_num_count()}')
                 point = self.get_best_point()
-                record = Record()
-                record.point = point
                 index = 0
-                record.point_index = index
-                # recorder.value = self.value.copy() #numpy的copy不行
-                record.value = copy.deepcopy(self.value)
-                self.record_queue.put(record)
-                items = self.value[point]
-                self.value[point] = items[index]
-                self.new_points.put(point)
-                logger.debug(f'add {items} to LIFO queue: {[x.point for x in self.record_queue.queue]}')
+                items = self.add_to_queue(point, index)
+                logger.debug(f'add to LIFO queue and guessing {items[index]}/{items}: '
+                             f'{[x.point for x in self.record_queue.queue]}')
                 self.guess_times += 1
-                return self.sudo_solve_iter(self.record_queue)
+                return self.sudo_solve_iter()
         while True:
             if self.record_queue.empty():
                 raise Exception('Sudo is wrong, no answer!')
@@ -361,49 +322,14 @@ class Sudo:
             index = record.point_index + 1
             items = record.value[point]
             self.value = record.value
+            logger.debug(f'Recall! Pop previous point, {items} @{point}')
             # 判断索引是否超出范围
             # if not exceed，则再回溯一次
             if index < len(items):
-                record = Record()
-                record.point = point
-                record.point_index = index
-                # recorder.value = self.value.copy() #numpy的copy不行
-                record.value = copy.deepcopy(self.value)
-                self.record_queue.put(record)
-                self.value[point] = items[index]
-                self.new_points.put(point)
+                items = self.add_to_queue(point, index)
                 logger.debug(f'guessing next index: answer={items[index]}/{items} @{point}')
                 self.guess_times += 1
-                return self.sudo_solve_iter(self.record_queue)
-
-            logger.debug(f'Recall! Pop previous point, {items} @{point}')
-
-
-    # Main function 解题
-    def sudo_solve(self):
-        # 第一次解题，排除法
-        logger.debug('excluding knowning answers')
-        self.sudo_exclude()
-        logger.debug(f'excluded, current result:\n{self.value}')
-
-        # 检查有没错误的，有错误的则回溯；没错误却未解开题目，则再猜测
-        while True:
-            if self.check_value():
-                fixed_answer = self.get_num_count()
-                logger.debug(f'current no. of fixed answers: {fixed_answer}')
-                if fixed_answer == 81:
-                    break
-                else:
-                    # 获取最佳猜测点
-                    point = self.get_best_point()
-                    logger.debug(f'Adding new guessing in LIFO, {point}')
-
-                    # 记录并处理
-                    self.record_guess(point)
-                    logger.debug(f'guessed, current result:\n{self.value}')
-            else:
-                # 出错，则回溯，尝试下一个猜测
-                self.recall()
+                return self.sudo_solve_iter()
 
 
 if __name__ == '__main__':
@@ -431,15 +357,15 @@ if __name__ == '__main__':
     # logging.basicConfig(level=logging.INFO)
     logging.basicConfig(level=logging.DEBUG)
     logger = logging.getLogger(__name__)
-    try:
-        t1 = time.time()
-        sudo = Sudo(data[1])
-        sudo.main()
-        t2 = time.time()
+    # try:
+    t1 = time.time()
+    sudo = Sudo(data[0])
+    sudo.sudo_solve_iter()
+    t2 = time.time()
 
-        print(u"完成，猜测了%s次" % sudo.guess_times)
-        print(sudo.value)
-        print(u"耗时：%.3fs" % (t2 - t1))
+    print(u"完成，猜测了%s次" % sudo.guess_times)
+    print(sudo.value)
+    print(u"耗时：%.3fs" % (t2 - t1))
 
-    except Exception as e:
-        logger.error(f'{sudo.value}', exc_info=True)
+    # except:
+    #     logger.error(f'ERROR: {sudo.value}', exc_info=True)
