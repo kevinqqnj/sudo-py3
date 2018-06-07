@@ -28,12 +28,12 @@ class Sudo:
         self.base_points = [[0, 0], [0, 3], [0, 6], [3, 0], [3, 3], [3, 6], [6, 0], [6, 3], [6, 6]]
 
         # 整理数据
-        _data = np.array(_data).reshape(9, -1)
+        self.puzzle = np.array(_data).reshape(9, -1)
         for r in range(0, 9):
             for c in range(0, 9):
-                if _data[r, c]:  # if not Zero
+                if self.puzzle[r, c]:  # if not Zero
                     # numpy default is int32, convert to int
-                    self.value[r, c] = int(_data[r, c])
+                    self.value[r, c] = int(self.puzzle[r, c])
                     # 新的确认的值添加到列表中，以便遍历
                     self.new_points.put((r, c))
                     # logger.debug(f'init: answer={self.value[r, c]} at {(r, c)}')
@@ -359,13 +359,14 @@ if __name__ == '__main__':
     logger = logging.getLogger(__name__)
     # try:
     t1 = time.time()
-    sudo = Sudo(data[0])
+    puzzle = data[0]
+    sudo = Sudo(puzzle)
     sudo.sudo_solve_iter()
     t2 = time.time()
 
-    print(u"完成，猜测了%s次" % sudo.guess_times)
-    print(sudo.value)
-    print(u"耗时：%.3fs" % (t2 - t1))
+    logger.info(f'Done! guessed {sudo.guess_times} times, in {t2 - t1:.3f}sec')
+    logger.info(f'Puzzle:\n{sudo.puzzle}')
+    logger.info(f'Answer:\n{sudo.value}')
 
     # except:
     #     logger.error(f'ERROR: {sudo.value}', exc_info=True)
