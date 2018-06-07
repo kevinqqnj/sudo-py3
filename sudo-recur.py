@@ -131,7 +131,7 @@ class Sudo:
                                 return True
 
     # 同一个九宫格内数字在同一行或同一列处理(同行列隐性排除)
-    def _check_same_num(self):
+    def _check_implicit(self):
         for b_r, b_c in self.base_points:
             block = self.value[b_r:b_r + 3, b_c:b_c + 3]
 
@@ -188,22 +188,22 @@ class Sudo:
 
     # 排除法解题
     def sudo_exclude(self):
-        is_run_same = True
-        is_run_one = True
+        implicit_exist = True
+        new_point_exist = True
 
-        while is_run_same:
-            while is_run_one:
+        while implicit_exist:
+            while new_point_exist:
                 # 剔除数字
                 while not self.new_points.empty():
                     point = self.new_points.get()  # 先进先出
                     self._cut_num(point)
 
                 # 检查List里值为单个数字的情况，如有新answer则加入new_points Queue，立即_cut_num
-                is_run_one = self._check_one_possbile()
+                new_point_exist = self._check_one_possbile()
 
             # 检查同行或列的情况
-            is_run_same = self._check_same_num()
-            is_run_one = True
+            implicit_exist = self._check_implicit()
+            new_point_exist = True
 
     # 得到有多少个确定的数字
     def get_num_count(self):
